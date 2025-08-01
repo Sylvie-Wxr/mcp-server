@@ -2,12 +2,16 @@ from fastapi import FastAPI, Response
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, Union
 import logging
+import httpx
+import io
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+AIARCHIVE_SERVER_BASE_URL = "http://10.0.1.157:3000"
 
 # MCP error codes
 MCP_ERRORS = {
@@ -47,11 +51,53 @@ def multiply_tool(args: Dict[str, Any]) -> str:
         raise ValueError("Parameters a and b must be numbers")
     return f"Result: {args['a'] * args['b']}"
 
+async def save_conversation_tool(args: Dict[str, Any]) -> str:
+    if "conversation" not in args:
+        raise ValueError("Missing required parameter: conversation")
+    
+    conversation_content = args["conversation"]
+    
+    if not isinstance(conversation_content, str):
+        raise ValueError("Parameter conversation must be a string")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Create multipart form data
+            files = {
+                'htmlDoc': ('conversation.txt', io.StringIO(conversation_content), 'text/plain')
+            }
+            data = {
+                'model': 'Claude (MCP)',
+                'skipScraping': ''
+            }
+            
+            # Make request to existing API endpoint
+            response = await client.post(
+                f"{AIARCHIVE_SERVER_BASE_URL}/api/conversation",
+                files=files,
+                data=data,
+                timeout=30.0
+            )
+            
+            if response.status_code == 201:
+                result = response.json()
+                return f"Conversation saved successfully! View it at: {result.get('url', 'N/A')}"
+            else:
+                error_msg = response.text
+                raise ValueError(f"API request failed: {response.status_code} - {error_msg}")
+                
+    except httpx.RequestError as e:
+        raise ValueError(f"Failed to connect to scraper server: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Error saving conversation: {str(e)}")
+
+
 # Tool registry
 TOOLS = {
     "add": add_tool,
     "reverse": reverse_tool,
-    "multiply": multiply_tool
+    "multiply": multiply_tool,
+    "save_conversation": save_conversation_tool
 }
 
 # Tool schemas
@@ -90,18 +136,33 @@ TOOL_SCHEMAS = [
             },
             "required": ["a", "b"]
         }
+    },
+    
+    {
+        "name": "save_conversation",
+        "description": "Saves your entire LLM conversation to aiarchives.duckdns.org and returns a shareable URL. Provide the full conversation content as HTML or plain text in the conversation parameter. Use this after completing a conversation to create a permanent, shareable link.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "conversation": {
+                    "type": "string", 
+                    "description": "The full conversation content to save"
+                }
+            },
+            "required": ["conversation"]
+        }
     }
 ]
 
 @app.post("/mcp")
 async def mcp_endpoint(request: MCPRequest):
     """MCP protocol endpoint"""
-    logger.info(f"📨 MCP Request: {request.model_dump()}")
+    logger.info(f"MCP Request: {request.model_dump()}")
     
     try:
         # Handle notifications (no id field)
         if request.id is None and request.method:
-            logger.info(f"🔔 Notification: {request.method}")
+            logger.info(f"Notification: {request.method}")
             return Response(status_code=204)
         
         # Validate JSON-RPC format
@@ -114,7 +175,7 @@ async def mcp_endpoint(request: MCPRequest):
         
         # Handle method calls
         if request.method == "initialize":
-            logger.info("🤝 Initialize")
+            logger.info("Initialize")
             return {
                 "jsonrpc": "2.0",
                 "id": request.id,
@@ -126,7 +187,7 @@ async def mcp_endpoint(request: MCPRequest):
             }
         
         elif request.method == "tools/list":
-            logger.info("📋 List tools")
+            logger.info("List tools")
             return {
                 "jsonrpc": "2.0",
                 "id": request.id,
@@ -144,7 +205,7 @@ async def mcp_endpoint(request: MCPRequest):
             tool_name = request.params["name"]
             tool_args = request.params["arguments"]
             
-            logger.info(f"🔧 Call tool: {tool_name} with {tool_args}")
+            logger.info(f"Call tool: {tool_name} with {tool_args}")
             
             if tool_name not in TOOLS:
                 return {
@@ -154,7 +215,12 @@ async def mcp_endpoint(request: MCPRequest):
                 }
             
             try:
-                result = TOOLS[tool_name](tool_args)
+                # Handle async tools
+                if tool_name == "save_conversation":
+                    result = await TOOLS[tool_name](tool_args)
+                else:
+                    result = TOOLS[tool_name](tool_args)
+                    
                 return {
                     "jsonrpc": "2.0",
                     "id": request.id,
@@ -175,7 +241,7 @@ async def mcp_endpoint(request: MCPRequest):
             }
             
     except Exception as e:
-        logger.error(f"💥 Server error: {e}")
+        logger.error(f"Server error: {e}")
         return {
             "jsonrpc": "2.0",
             "id": request.id,
