@@ -1,0 +1,87 @@
+# .github/workflows/deploy.yml
+name: Deploy Python MCP Server to EC2
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SSH_KEY: ${{ secrets.EC2_KEY_BASE64 }}
+      HOST: ${{ secrets.SERVER_HOST }}
+      USER: ${{ secrets.SERVER_USER }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Decode and save EC2 SSH key
+        run: |
+          echo "$SSH_KEY" | base64 -d > deploy_key
+          chmod 600 deploy_key
+
+      # Optional: Test Docker build locally
+      # - name: Test Docker build
+      #   run: |
+      #     docker build -t mcp-server:test .
+      #     # Optional: Run container tests
+      #     # docker run --rm mcp-server:test uv run pytest
+
+      - name: Sync code to EC2
+        run: |
+          rsync -avz --delete \
+            --exclude '__pycache__' \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.venv' \
+            --exclude 'node_modules' \
+            -e "ssh -i deploy_key -o StrictHostKeyChecking=no" \
+            . $USER@$HOST:~/mcp-server
+
+      - name: Deploy with Docker on EC2
+        run: |
+          ssh -i deploy_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+            cd ~/mcp-server
+            
+            # Stop and remove existing container
+            docker stop mcp-server || true
+            docker rm mcp-server || true
+            
+            # Clean up Docker resources (removes unused images, containers, networks, cache)
+            docker system prune -af || true
+            
+            # Build new image
+            docker build -t mcp-server:latest .
+            
+            # Run new container
+            docker run -d \
+              --name mcp-server \
+              --restart unless-stopped \
+              -p 3001:3001 \
+              mcp-server:latest
+          EOF
+
+      - name: Verify deployment
+        run: |
+          ssh -i deploy_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+            # Wait a moment for container to start
+            sleep 5
+            
+            # Check if container is running
+            if docker ps | grep -q mcp-server; then
+              echo "Container is running"
+              # Test the endpoint
+              curl -f http://localhost:3001/health || curl -f http://localhost:3001/ || echo 'Service may still be starting...'
+            else
+              echo "Container failed to start"
+              docker logs mcp-server || true
+              exit 1
+            fi
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: rm -f deploy_key
