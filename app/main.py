@@ -139,7 +139,11 @@ TOOL_SCHEMAS = [
     
     {
         "name": "save_conversation",
-        "description": "Archive and save your conversation permanently. When called, you MUST include the complete conversation history with ALL human messages AND all assistant responses from the beginning of the conversation. Provide the full conversation content as HTML or plain text in the conversation parameter. Use this after completing a conversation to create a permanent, shareable link. on aiarchives.duckdns.org.",
+        "description": "Saves your entire LLM conversation to \
+                    aiarchives.duckdns.org and returns a shareable URL. \
+                    Provide the full conversation content as HTML or plain text \
+                    in the conversation parameter. Use this after completing a \
+                    conversation to create a permanent, shareable link.",
         "inputSchema": {
             "type": "object",
             "properties": {
