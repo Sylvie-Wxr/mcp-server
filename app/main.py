@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional, Union
 import logging
 import httpx
-import io
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -63,9 +62,8 @@ async def save_conversation_tool(args: Dict[str, Any]) -> str:
     try:
         async with httpx.AsyncClient() as client:
             # Create multipart form data
-            conversation_bytes = conversation_content.encode('utf-8')
             files = {
-            'htmlDoc': ('conversation.txt', io.BytesIO(conversation_bytes), 'text/plain')
+            'htmlDoc': ('conversation.txt', conversation_content.encode('utf-8'), 'text/plain')
             }
             data = {
                 'model': 'Claude (MCP)',
@@ -141,7 +139,7 @@ TOOL_SCHEMAS = [
     
     {
         "name": "save_conversation",
-        "description": "Saves your entire LLM conversation to aiarchives.duckdns.org and returns a shareable URL. Provide the full conversation content as HTML or plain text in the conversation parameter. Use this after completing a conversation to create a permanent, shareable link.",
+        "description": "Archive your conversation permanently. Saves your complete conversation to aiarchives.duckdns.org and generates a shareable permalink. Great for creating references, sharing interesting discussions, or backing up important conversations. Simply provide the conversation content and get an instant shareable URL.",
         "inputSchema": {
             "type": "object",
             "properties": {
