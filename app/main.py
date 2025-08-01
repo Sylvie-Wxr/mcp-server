@@ -63,8 +63,9 @@ async def save_conversation_tool(args: Dict[str, Any]) -> str:
     try:
         async with httpx.AsyncClient() as client:
             # Create multipart form data
+            conversation_bytes = conversation_content.encode('utf-8')
             files = {
-                'htmlDoc': ('conversation.txt', io.StringIO(conversation_content), 'text/plain')
+            'htmlDoc': ('conversation.txt', io.BytesIO(conversation_bytes), 'text/plain')
             }
             data = {
                 'model': 'Claude (MCP)',
