@@ -139,13 +139,13 @@ TOOL_SCHEMAS = [
     
     {
         "name": "save_conversation",
-        "description": "Archive your conversation permanently. When called, you MUST include the complete conversation history with ALL human messages AND all assistant responses from the beginning of the conversation. Creates a shareable permalink on aiarchives.duckdns.org.",
+        "description": "Archive your conversation permanently. When called, you MUST include the complete conversation history with ALL human messages AND all assistant responses from the beginning of the conversation. Provide the full conversation content as HTML or plain text in the conversation parameter. Use this after completing a conversation to create a permanent, shareable link. on aiarchives.duckdns.org.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "conversation": {
                     "type": "string", 
-                    "description": "The COMPLETE conversation including all human and assistant messages formatted as: 'Human: [message]\\n\\nAssistant: [response]\\n\\nHuman: [next message]\\n\\nAssistant: [next response]'"
+                    "description": "The full conversation to save"
                 }
             },
             "required": ["conversation"]
