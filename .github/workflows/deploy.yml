@@ -45,10 +45,17 @@ jobs:
         run: |
           ssh -i deploy_key -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
             cd ~/mcp-server
+
+            # Stop and remove ALL containers using port 3001
+            docker ps -a --filter "publish=3001" --format "{{.Names}}" | xargs -r docker stop
+            docker ps -a --filter "publish=3001" --format "{{.Names}}" | xargs -r docker rm
             
             # Stop and remove existing container
             docker stop mcp-server || true
             docker rm mcp-server || true
+
+            # Kill any process using port 3001 (extra safety)
+            sudo lsof -ti:3001 | xargs -r sudo kill -9 || true
             
             # Clean up Docker resources (removes unused images, containers, networks, cache)
             docker system prune -af || true
