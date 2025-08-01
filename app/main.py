@@ -141,7 +141,7 @@ TOOL_SCHEMAS = [
         "name": "save_conversation",
         "description": "Saves your entire LLM conversation to \
                     aiarchives.duckdns.org and returns a shareable URL. \
-                    Provide the full conversation content as HTML or plain text \
+                    Provide the full conversation content as HTML \
                     in the conversation parameter. Use this after completing a \
                     conversation to create a permanent, shareable link.",
         "inputSchema": {
