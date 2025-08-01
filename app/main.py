@@ -148,8 +148,7 @@ TOOL_SCHEMAS = [
             "type": "object",
             "properties": {
                 "conversation": {
-                    "type": "string", 
-                    "description": "The full conversation to save"
+                    "type": "string"
                 }
             },
             "required": ["conversation"]
